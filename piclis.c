@@ -646,16 +646,43 @@ uint8_t readbyte(void) {
  */
 void sendbytes(uint8_t *a, uint32_t s) {
    uint8_t chk = 0;
-   uint8_t c;
 
-   uart_putc('$');
    while(s) {
       chk += sendbyte(*a);
       a++;
       s--;
+      if (s % 15 == 0) uart_puts("\r\n");
    }
-   uart_putc('#');
-   sendbyte(chk);
+   // uart_putc('#');
+   // sendbyte(chk);
+}
+
+/**
+ * Compara bytes de uma área da memória com uma palavra de dados fornecida
+ * @param search_word Palavra de dados
+ * @param a Endereço da área de memória.
+ * @param s Tamanho da área de memória.
+ * @return Número de ocorrências da palavra de dados na região da memória.
+ */
+uint8_t compbytes(uint32_t search_word, uint8_t *a, uint32_t s) {
+   uint8_t times = 0;
+   unsigned char buffer[4];
+
+   while (s) {
+      uint32_t variable;
+      buffer[0] = ((*a << 3)| (*(a+1) << 2)| (*(a+2) << 1)| (*(a+3)));
+      buffer[1] = ((*(a+4) << 3)| (*(a+5) << 2)| (*(a+6) << 1)| (*(a+7)));
+      buffer[2] = ((*(a+8) << 3)| (*(a+9) << 2)| (*(a+10) << 1)| (*(a+11)));
+      buffer[3] = ((*(a+12) << 3)| (*(a+13) << 2)| (*(a+14) << 1)| (*(a+15)));
+      variable = ((buffer[0] << 24)| (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
+      if (variable == search_word) {
+         times++;
+      }
+      a++;
+      s--;
+   }
+   
+   return times;
 }
 
 /**
@@ -956,22 +983,36 @@ trata_morse:
 
 trata_search:
    /*
-   * Pesquisa pela primeira ocorrência de uma palavra na memória
+   * Conta o número de ocorrências de uma palavra de dados na memória (até 4 caracteres)
    */
-   ack();
+   skip(' ');
+   uint8_t first = char_to_hex(uart_getc());
+   uint8_t second = char_to_hex(uart_getc());
+   uint8_t third = char_to_hex(uart_getc());
+   uint32_t search_word = (first << 12) | (second << 8) | (third << 4) | char_to_hex(uart_getc());     // palavra de dados
+   skip(' ');
+   uint32_t start_address_search = readword(' ');                   // endereço inicial
+   uint32_t search_size = readword('\r');                   // tamanho da área de dados
 
+   uint8_t times_search = compbytes(search_word, (uint8_t *) start_address_search, search_size);
+
+   uart_puts("A palavra ");
+   uart_puts(search_word);
+   uart_puts(" aparece ");
+   uart_putc(hex_to_char(times_search));
+   uart_puts(" vezes na area procurada.");
+   goto retry;
 
 trata_checksum:
    /*
    * Faz o checksum de uma área de memória.
    */
-  ack();
   sendbytes((uint8_t*) 400, 32);
   goto retry;
 
 trata_echo:
    /*
-   * Envia uma mensagem pela UART para garantir seu funcionamento.
+   * Envia uma mensagem para a placa, e retorna ela pela UART, para garantir seu funcionamento.
    * A mensagem pode ter até 99 caracteres.
    * Formato do comando $pECHO <palavra>
    */
@@ -996,48 +1037,49 @@ trata_echo:
 
 trata_dectobin:
    /*
-   * Converte um número fornecido de decimal positivo para binário sem sinal, e envia-o serialmente.
-   * A mensagem pode ter até 9 caracteres.
+   * Converte um número fornecido de decimal para binário, tratando casos negativos com complemento de dois, e envia-o serialmente.
+   * O limite do valor decimal é de 2147483647
    * Formato do comando $pBIN <número decimal>
    */
-   skip(' ');
-   int numero_decimal[9];
-   int algarismos = 0;
-   int numero_total = 0;
-   uint8_t char_decimal = uart_getc();
-   int algarismo_decimal = char_to_hex((char) char_decimal);
-   while (char_decimal != '\r' && algarismos < 9) {
-      numero_decimal[algarismos] = algarismo_decimal;
-      algarismos++;
-      char_decimal = uart_getc();
-      algarismo_decimal = char_to_hex((char) char_decimal);
-   }
-   uart_puts("+");
+        skip(' ');
 
-   int power = 1;
-   for (int k = 0; k <= algarismos - 1; k++) {
-      for (int potencia = 0; potencia <= algarismos - k - 1; potencia++){
-         power *= 10;
-      }
-      numero_total += numero_decimal[k] * power;
-   }
+        int numero_decimal = 0;
+        int is_negative = 0;
+        uint8_t char_decimal = uart_getc();
 
+        if (char_decimal == '-') {
+            is_negative = 1;
+            char_decimal = uart_getc();
+        }
 
-   int numero_binario[32];
-   int digito_binario;
-   int algarismos_binarios = 0;
-   while (numero_total > 0) {
-      digito_binario = (numero_total % 2);
-      numero_binario[algarismos_binarios] = digito_binario;
-      algarismos_binarios++;
-      numero_total /= 2;
-   }
+        while (char_decimal != '\r') {
+            int algarismo_decimal = char_to_hex((char)char_decimal);
+            numero_decimal = numero_decimal * 10 + algarismo_decimal;
+            char_decimal = uart_getc();
+        }
 
-   for (int l = algarismos_binarios - 1; l >= 0; l++){
-      uart_putc(hex_to_char((uint8_t) numero_binario[l]));
-   }
+        if (is_negative) {
+            numero_decimal = -numero_decimal;
+        }
 
-   uart_puts("\r\n");
+        uart_puts(">");
+
+        uint32_t numero_binario = (uint32_t)numero_decimal;
+        int algarismos_binarios = 32;
+        char bin_str[33];
+        bin_str[32] = '\0';
+
+        for (int i = 31; i >= 0; i--) {
+            bin_str[i] = (numero_binario & 1) ? '1' : '0';
+            numero_binario >>= 1;
+        }
+
+        uart_puts(bin_str);
+        if(is_negative){
+        	uart_puts(" (Complemento de Dois)");
+        }
+        uart_puts("\r\n");
+        
    goto retry;
 
 trata_g:
@@ -1074,11 +1116,9 @@ trata_m:
    /*
     * Lê memória.
     */
-   a = readword(',');                   // endereço inicial
-   s = readword('#');                   // tamanho
-   uart_getc();
-   uart_getc();
-   uart_putc('+');
+   skip(' ');
+   a = readword(' ');                   // endereço inicial
+   s = readword('\r');                   // tamanho
 
    sendbytes((uint8_t*)a, s);
    goto retry;
@@ -1087,12 +1127,12 @@ trata_M:
    /*
     * Escreve memória.
     */
-   a = readword(',');                   // endereço inicial
-   s = readword(':');                   // tamanho
+   skip(' ');
+   a = readword(' ');                   // endereço inicial
+   s = readword('\r');                   // tamanho
 
    readbytes((uint8_t*)a, s);
-   ack();
-   goto envia_ok;
+   goto retry;
 
 trata_status:
    /*
