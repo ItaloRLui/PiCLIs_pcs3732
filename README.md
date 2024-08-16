@@ -12,9 +12,9 @@ $pBIN (número decimal) - Converte o número decimal positivo ou negativo para s
 
 $pECHO (mensagem) - Recebe a mensagem, e envia ela serialmente de volta ao remetente pela UART.
 
-$m (endereço inicial) (tamanho) - Adaptação do comando do gdbstub para leitura de memória. São mostrados no terminal (tamanho) bytes de dados a partir de (endereço inicial), sendo o endereço inicial dado em bytes.
+m (endereço inicial) (tamanho) - Adaptação do comando do gdbstub para leitura de memória. São mostrados no terminal (tamanho) bytes de dados a partir de (endereço inicial), sendo o endereço inicial dado em bytes.
 
-$M (endereço inicial) (tamanho) - Adaptação do comando do gdbstub para escrita de memória byte por byte. Deve ser seguido por (tamanho) caracteres hexadecimais, que reescrevem a memória na região determinada.
+M (endereço inicial) (tamanho) - Adaptação do comando do gdbstub para escrita de memória byte por byte. Deve ser seguido por (tamanho) caracteres hexadecimais, que reescrevem a memória na região determinada.
 
 Para executar, apenas baixe todos os arquivos do repositório, execute o comando "make all", coloque os arquivos no cartão SD preparado para uso pelo Raspberry Pi 2 B (junto com os arquivos fixup.dat, .rtb, start.elf, config.txt, etc.), conecte um conversor USB-serial nos pinos correspondentes à interface UART e ligue o terminal serial de sua preferência.
 
