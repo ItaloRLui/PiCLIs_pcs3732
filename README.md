@@ -1,4 +1,4 @@
-# pcs3732
+# PiCLIs
 Projeto Final da Disciplina PCS3732 - Laboratório de Processadores: PiCLIs
 
 Este projeto foi pensado como uma adaptação e extensão do programa gdbstub apresentado em aula, mas fora do contexto de depuração. Ele atua como um CLI para o Raspberry Pi, permitindo controle sobre os diferentes módulos da placa, como a UART, as GPIOs (em específico o LED nativo) e a memória RAM.
